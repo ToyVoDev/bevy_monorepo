@@ -1,0 +1,20 @@
+[package]
+name = "move_box"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aeronet = { version = "0.14", features = ["visualizer"] }
+aeronet_replicon = { version = "0.15", features = ["client", "server"] }
+aeronet_websocket = { version = "0.14", features = ["client", "server"] }
+aeronet_webtransport = { version = "0.14", features = [
+  "client",
+  "server",
+  "dangerous-configuration",
+] }
+bevy = { version = "0.16" }
+bevy_egui = { version = "0.34" }
+bevy_replicon = { version = "0.34" }
+cfg-if = { version = "1" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
