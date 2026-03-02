@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "avian_3d_character", "move_box", "untitled_game", "wave", "compute_shader_falling_sand", "ProjectSandBevy", "my_game"]
+members = [ "avian_3d_character", "move_box", "untitled_game", "wave", "compute_shader_falling_sand", "ProjectSandBevy", "my_game", "compute_shader_game_of_life", "compute_shader_sand" ]
 
 
 # Enable a small amount of optimization in the dev profile.

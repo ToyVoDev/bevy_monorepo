@@ -1,2 +1,9 @@
-target
+target/
 result
+*.bin
+*.log
+*.tsbuildinfo
+.DS_Store
+.idea/
+dist/
+node_modules/
