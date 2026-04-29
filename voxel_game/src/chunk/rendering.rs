@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, VertexAttributeValues};
 use avian3d::prelude::*;
 use std::collections::HashMap;
 use crate::chunk::loading::ChunkedWorld;
@@ -11,25 +10,17 @@ pub struct ChunkEntities(pub HashMap<ChunkPos, Entity>);
 
 pub const MAX_MESHES_PER_FRAME: usize = 4;
 
-fn mesh_to_collider(mesh: &Mesh) -> Option<Collider> {
-    let positions = match mesh.attribute(Mesh::ATTRIBUTE_POSITION)? {
-        VertexAttributeValues::Float32x3(v) => v.clone(),
-        _ => return None,
-    };
-    let vertices: Vec<Vec3> = positions.iter().map(|p| Vec3::new(p[0], p[1], p[2])).collect();
-
-    let indices: Vec<[u32; 3]> = match mesh.indices()? {
-        Indices::U32(idx) => idx.chunks(3).filter_map(|t| {
-            if t.len() == 3 { Some([t[0], t[1], t[2]]) } else { None }
-        }).collect(),
-        Indices::U16(idx) => idx.chunks(3).filter_map(|t| {
-            if t.len() == 3 { Some([t[0] as u32, t[1] as u32, t[2] as u32]) } else { None }
-        }).collect(),
-    };
-
-    if vertices.is_empty() || indices.is_empty() {
+fn mesh_to_collider(data: &crate::chunk::meshing::MeshData) -> Option<Collider> {
+    if data.positions.is_empty() || data.indices.is_empty() {
         return None;
     }
+    let vertices: Vec<Vec3> = data.positions.iter()
+        .map(|p| Vec3::new(p[0], p[1], p[2]))
+        .collect();
+    let indices: Vec<[u32; 3]> = data.indices.chunks(3)
+        .filter_map(|t| if t.len() == 3 { Some([t[0], t[1], t[2]]) } else { None })
+        .collect();
+    if vertices.is_empty() || indices.is_empty() { return None; }
     Some(Collider::trimesh(vertices, indices))
 }
 
@@ -40,7 +31,6 @@ pub fn remesh_dirty_chunks(
     mut world: ResMut<ChunkedWorld>,
     mut chunk_entities: ResMut<ChunkEntities>,
     mut shared_material: Local<Option<Handle<StandardMaterial>>>,
-    mut priority_queue: ResMut<crate::chunk::loading::PriorityMeshQueue>,
 ) {
     // Cleanup unloaded
     let unloaded: Vec<ChunkPos> = chunk_entities.0
@@ -54,22 +44,24 @@ pub fn remesh_dirty_chunks(
         }
     }
 
-    // Priority positions (hard shell — no frame cap)
-    let priority: Vec<ChunkPos> = std::mem::take(&mut priority_queue.0)
-        .into_iter()
-        .filter(|pos| world.chunks.get(pos).map_or(false, |c| c.dirty))
+    // Chunks that already have a mesh entity went dirty due to a player edit — always
+    // remesh them immediately so block placement/removal is never visually delayed.
+    let urgent: Vec<ChunkPos> = chunk_entities.0
+        .keys()
+        .filter(|pos| world.chunks.get(*pos).map_or(false, |c| c.dirty))
+        .copied()
         .collect();
 
-    // Regular dirty positions (capped), excluding already-priority ones
-    let regular: Vec<ChunkPos> = world
+    // Newly generated chunks (no entity yet) are capped per frame.
+    let new_dirty: Vec<ChunkPos> = world
         .chunks
         .iter()
-        .filter(|(p, c)| c.dirty && !priority.contains(p))
+        .filter(|(p, c)| c.dirty && !chunk_entities.0.contains_key(p))
         .map(|(p, _)| *p)
         .take(MAX_MESHES_PER_FRAME)
         .collect();
 
-    let dirty_positions: Vec<ChunkPos> = priority.into_iter().chain(regular).collect();
+    let dirty_positions: Vec<ChunkPos> = urgent.into_iter().chain(new_dirty).collect();
 
     if dirty_positions.is_empty() {
         return;
@@ -85,18 +77,15 @@ pub fn remesh_dirty_chunks(
     for pos in dirty_positions {
         let Some(chunk) = world.get_mut(pos) else { continue };
         chunk.dirty = false;
-        let mesh = greedy_mesh(&chunk.voxels);
+        let data = crate::chunk::meshing::greedy_mesh(&chunk.voxels);
 
         if let Some(old) = chunk_entities.0.remove(&pos) {
             commands.entity(old).despawn();
         }
 
-        if mesh.count_vertices() == 0 {
-            continue;
-        }
-
-        let collider = mesh_to_collider(&mesh);
-        let mesh_handle = meshes.add(mesh);
+        if data.positions.is_empty() { continue; }
+        let collider = mesh_to_collider(&data);
+        let mesh_handle = meshes.add(crate::chunk::meshing::mesh_data_to_mesh(&data));
 
         let mut entity_cmd = commands.spawn((
             Mesh3d(mesh_handle),

@@ -4,6 +4,13 @@ use bevy::render::render_asset::RenderAssetUsages;
 use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
 use crate::types::{VoxelId, AIR};
 
+pub struct MeshData {
+    pub positions: Vec<[f32; 3]>,
+    pub normals:   Vec<[f32; 3]>,
+    pub uvs:       Vec<[f32; 2]>,
+    pub indices:   Vec<u32>,
+}
+
 #[inline(always)]
 fn at(voxels: &[VoxelId], x: usize, y: usize, z: usize) -> VoxelId {
     let n = CHUNK_SIZE;
@@ -13,7 +20,7 @@ fn at(voxels: &[VoxelId], x: usize, y: usize, z: usize) -> VoxelId {
 /// Generates a greedy-merged triangle mesh from a flat voxel array.
 /// `voxels` must have length `CHUNK_SIZE³`, indexed as x + y*N + z*N*N.
 /// Faces between two solid voxels are culled. Only boundary faces are emitted.
-pub fn greedy_mesh(voxels: &[VoxelId]) -> Mesh {
+pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
     let n = CHUNK_SIZE;
     let mut positions: Vec<[f32; 3]> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
@@ -75,11 +82,15 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> Mesh {
         }
     }
 
+    MeshData { positions, normals, uvs, indices: tri_indices }
+}
+
+pub fn mesh_data_to_mesh(data: &MeshData) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-    mesh.insert_indices(Indices::U32(tri_indices));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions.clone());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals.clone());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs.clone());
+    mesh.insert_indices(Indices::U32(data.indices.clone()));
     mesh
 }
 
@@ -173,40 +184,27 @@ fn emit_quads(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::render::mesh::VertexAttributeValues;
     use crate::types::STONE;
 
-    fn vertex_count(mesh: &Mesh) -> usize {
-        match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
-            Some(VertexAttributeValues::Float32x3(v)) => v.len(),
-            _ => 0,
-        }
-    }
-
-    fn index_count(mesh: &Mesh) -> usize {
-        use bevy::render::mesh::Indices;
-        match mesh.indices() {
-            Some(Indices::U32(i)) => i.len(),
-            _ => 0,
-        }
-    }
+    fn vertex_count(data: &MeshData) -> usize { data.positions.len() }
+    fn index_count(data: &MeshData) -> usize { data.indices.len() }
 
     #[test]
     fn empty_chunk_no_geometry() {
         let voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        let mesh = greedy_mesh(&voxels);
-        assert_eq!(vertex_count(&mesh), 0);
-        assert_eq!(index_count(&mesh), 0);
+        let data = greedy_mesh(&voxels);
+        assert_eq!(vertex_count(&data), 0);
+        assert_eq!(index_count(&data), 0);
     }
 
     #[test]
     fn single_voxel_has_six_faces() {
         let mut voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         voxels[0] = STONE; // position (0,0,0)
-        let mesh = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels);
         // 6 faces × 4 vertices = 24 verts; 6 faces × 2 triangles × 3 indices = 36 indices
-        assert_eq!(vertex_count(&mesh), 24, "single voxel needs 24 vertices");
-        assert_eq!(index_count(&mesh), 36, "single voxel needs 36 indices");
+        assert_eq!(vertex_count(&data), 24, "single voxel needs 24 vertices");
+        assert_eq!(index_count(&data), 36, "single voxel needs 36 indices");
     }
 
     #[test]
@@ -214,7 +212,7 @@ mod tests {
         let mut voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         voxels[0] = STONE; // (0,0,0)
         voxels[1] = STONE; // (1,0,0) — adjacent on X axis
-        let mesh = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels);
         // Two voxels share one internal face pair (+X of voxel0 meets -X of voxel1 → culled).
         // Exposed faces: 10 raw quads.
         // Greedy merges coplanar adjacent faces:
@@ -225,16 +223,16 @@ mod tests {
         // Remaining unmerged: -X of voxel0 (1), +X of voxel1 (1) = 2 quads.
         // Total: 4 merged + 2 unmerged = 6 quads.
         // 6 quads × 4 verts = 24; 6 quads × 6 indices = 36
-        assert_eq!(vertex_count(&mesh), 24);
-        assert_eq!(index_count(&mesh), 36);
+        assert_eq!(vertex_count(&data), 24);
+        assert_eq!(index_count(&data), 36);
     }
 
     #[test]
     fn full_chunk_only_outer_faces() {
         let voxels = vec![STONE; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        let mesh = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels);
         // 6 outer faces, each greedy-merged to 1 quad: 6 × 4 = 24 verts, 6 × 6 = 36 indices
-        assert_eq!(vertex_count(&mesh), 24);
-        assert_eq!(index_count(&mesh), 36);
+        assert_eq!(vertex_count(&data), 24);
+        assert_eq!(index_count(&data), 36);
     }
 }
