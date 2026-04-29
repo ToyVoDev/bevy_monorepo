@@ -14,6 +14,7 @@ impl Plugin for ChunkPlugin {
         app
             .init_resource::<ChunkedWorld>()
             .init_resource::<ChunkEntities>()
+            .init_resource::<loading::PriorityMeshQueue>()
             .add_systems(Update, load_unload_chunks)
             .add_systems(Update, remesh_dirty_chunks.after(load_unload_chunks));
     }

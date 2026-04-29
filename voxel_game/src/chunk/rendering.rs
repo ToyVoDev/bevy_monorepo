@@ -40,8 +40,9 @@ pub fn remesh_dirty_chunks(
     mut world: ResMut<ChunkedWorld>,
     mut chunk_entities: ResMut<ChunkEntities>,
     mut shared_material: Local<Option<Handle<StandardMaterial>>>,
+    mut priority_queue: ResMut<crate::chunk::loading::PriorityMeshQueue>,
 ) {
-    // Cleanup: despawn entities for unloaded chunks
+    // Cleanup unloaded
     let unloaded: Vec<ChunkPos> = chunk_entities.0
         .keys()
         .filter(|pos| !world.chunks.contains_key(*pos))
@@ -53,20 +54,27 @@ pub fn remesh_dirty_chunks(
         }
     }
 
-    // Collect up to MAX_MESHES_PER_FRAME dirty chunk positions
-    let dirty_positions: Vec<ChunkPos> = world
+    // Priority positions (hard shell — no frame cap)
+    let priority: Vec<ChunkPos> = std::mem::take(&mut priority_queue.0)
+        .into_iter()
+        .filter(|pos| world.chunks.get(pos).map_or(false, |c| c.dirty))
+        .collect();
+
+    // Regular dirty positions (capped), excluding already-priority ones
+    let regular: Vec<ChunkPos> = world
         .chunks
         .iter()
-        .filter(|(_, c)| c.dirty)
+        .filter(|(p, c)| c.dirty && !priority.contains(p))
         .map(|(p, _)| *p)
         .take(MAX_MESHES_PER_FRAME)
         .collect();
+
+    let dirty_positions: Vec<ChunkPos> = priority.into_iter().chain(regular).collect();
 
     if dirty_positions.is_empty() {
         return;
     }
 
-    // Lazily create and cache the shared material
     let material_handle = shared_material
         .get_or_insert_with(|| materials.add(StandardMaterial {
             base_color: Color::srgb(0.5, 0.45, 0.4),
