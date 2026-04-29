@@ -112,6 +112,7 @@ pub fn handle_break_place(
     mut world: ResMut<ChunkedWorld>,
     mut inventory: ResMut<Inventory>,
     game_mode: Res<GameMode>,
+    assets: Res<crate::simulation::debris::DebrisAssets>,
 ) {
     if mouse.just_pressed(MouseButton::Left) {
         if let Some(hit) = &targeted.0 {
@@ -138,7 +139,7 @@ pub fn handle_break_place(
                         2.0 + i as f32 * 0.2,
                         (i as f32 * 0.2) - 0.2,
                     );
-                    spawn_debris(&mut commands, voxel_id, voxel_world, spread);
+                    spawn_debris(&mut commands, &assets, voxel_id, voxel_world, spread);
                 }
             }
         }
