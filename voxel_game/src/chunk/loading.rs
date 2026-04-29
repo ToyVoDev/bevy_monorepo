@@ -8,7 +8,7 @@ pub const LOAD_RADIUS: i32 = 10;
 
 #[derive(Resource, Default, Debug)]
 pub struct ChunkedWorld {
-    pub(crate) chunks: HashMap<ChunkPos, Chunk>,
+    pub chunks: HashMap<ChunkPos, Chunk>,
 }
 
 impl ChunkedWorld {

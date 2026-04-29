@@ -7,3 +7,5 @@ result
 .idea/
 dist/
 node_modules/
+.direnv/
+.superpowers/

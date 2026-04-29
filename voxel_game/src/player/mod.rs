@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod controller;
+pub mod interaction;
 
 use bevy::prelude::*;
 use avian3d::prelude::*;
@@ -13,11 +14,17 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(PhysicsPlugins::default())
+            .init_resource::<interaction::TargetedVoxel>()
             .add_systems(Startup, (controller::spawn_player, camera::spawn_camera))
             .add_systems(Update, (
                 controller::move_player,
                 camera::sync_camera,
                 cursor_lock,
+                interaction::update_targeted_voxel,
+            ))
+            .add_systems(Update, (
+                interaction::handle_break_place,
+                interaction::handle_pickup,
             ));
     }
 }
