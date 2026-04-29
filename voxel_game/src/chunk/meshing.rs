@@ -21,7 +21,9 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> Mesh {
     let mut tri_indices: Vec<u32> = Vec::new();
 
     // Each axis d has a u-axis and v-axis for the 2D face plane
-    let axes: [(usize, usize, usize); 3] = [(0, 1, 2), (1, 0, 2), (2, 0, 1)];
+    // (d, u_ax, v_ax) chosen so dv×du = +d for front faces (CCW winding → correct geometric normal).
+    // d=X: u=Z, v=Y → Y×Z = X. d=Y: u=X, v=Z → Z×X = Y. d=Z: u=Y, v=X → X×Y = Z.
+    let axes: [(usize, usize, usize); 3] = [(0, 2, 1), (1, 0, 2), (2, 1, 0)];
 
     // Pre-allocate scratch buffers — reused every layer to avoid 384 heap allocs per call
     let mut mask = vec![AIR; n * n];
