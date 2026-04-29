@@ -86,12 +86,12 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
     MeshData { positions, normals, uvs, indices: tri_indices }
 }
 
-pub fn mesh_data_to_mesh(data: &MeshData) -> Mesh {
+pub fn mesh_data_to_mesh(data: MeshData) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions.clone());
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals.clone());
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs.clone());
-    mesh.insert_indices(Indices::U32(data.indices.clone()));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs);
+    mesh.insert_indices(Indices::U32(data.indices));
     mesh
 }
 

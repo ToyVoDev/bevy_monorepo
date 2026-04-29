@@ -41,7 +41,7 @@ pub fn spawn_meshing_tasks(
         .collect();
     for pos in unloaded {
         if let Some(entity) = chunk_entities.0.remove(&pos) {
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
         }
     }
 
@@ -103,13 +103,13 @@ pub fn collect_meshed_chunks(
 
     for (pos, data) in completed {
         if let Some(old) = chunk_entities.0.remove(&pos) {
-            commands.entity(old).despawn();
+            commands.entity(old).despawn_recursive();
         }
         if data.positions.is_empty() {
             continue;
         }
         let collider = mesh_to_collider(&data);
-        let mesh_handle = meshes.add(mesh_data_to_mesh(&data));
+        let mesh_handle = meshes.add(mesh_data_to_mesh(data));
         let mut entity_cmd = commands.spawn((
             Mesh3d(mesh_handle),
             MeshMaterial3d(material_handle.clone()),
