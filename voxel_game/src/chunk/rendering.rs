@@ -9,6 +9,8 @@ use crate::types::ChunkPos;
 #[derive(Resource, Default)]
 pub struct ChunkEntities(pub HashMap<ChunkPos, Entity>);
 
+pub const MAX_MESHES_PER_FRAME: usize = 4;
+
 fn mesh_to_collider(mesh: &Mesh) -> Option<Collider> {
     let positions = match mesh.attribute(Mesh::ATTRIBUTE_POSITION)? {
         VertexAttributeValues::Float32x3(v) => v.clone(),
@@ -37,23 +39,40 @@ pub fn remesh_dirty_chunks(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut world: ResMut<ChunkedWorld>,
     mut chunk_entities: ResMut<ChunkEntities>,
+    mut shared_material: Local<Option<Handle<StandardMaterial>>>,
 ) {
+    // Cleanup: despawn entities for unloaded chunks
+    let unloaded: Vec<ChunkPos> = chunk_entities.0
+        .keys()
+        .filter(|pos| !world.chunks.contains_key(*pos))
+        .copied()
+        .collect();
+    for pos in unloaded {
+        if let Some(entity) = chunk_entities.0.remove(&pos) {
+            commands.entity(entity).despawn();
+        }
+    }
+
+    // Collect up to MAX_MESHES_PER_FRAME dirty chunk positions
     let dirty_positions: Vec<ChunkPos> = world
         .chunks
         .iter()
         .filter(|(_, c)| c.dirty)
         .map(|(p, _)| *p)
+        .take(MAX_MESHES_PER_FRAME)
         .collect();
 
     if dirty_positions.is_empty() {
         return;
     }
 
-    // One material shared across all chunks remeshed this frame
-    let shared_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.5, 0.45, 0.4),
-        ..default()
-    });
+    // Lazily create and cache the shared material
+    let material_handle = shared_material
+        .get_or_insert_with(|| materials.add(StandardMaterial {
+            base_color: Color::srgb(0.5, 0.45, 0.4),
+            ..default()
+        }))
+        .clone();
 
     for pos in dirty_positions {
         let Some(chunk) = world.get_mut(pos) else { continue };
@@ -70,11 +89,10 @@ pub fn remesh_dirty_chunks(
 
         let collider = mesh_to_collider(&mesh);
         let mesh_handle = meshes.add(mesh);
-        let material = shared_material.clone();
 
         let mut entity_cmd = commands.spawn((
             Mesh3d(mesh_handle),
-            MeshMaterial3d(material),
+            MeshMaterial3d(material_handle.clone()),
             Transform::from_translation(pos.to_world_origin()),
             Visibility::default(),
             RigidBody::Static,
@@ -86,18 +104,5 @@ pub fn remesh_dirty_chunks(
         }
 
         chunk_entities.0.insert(pos, entity_cmd.id());
-    }
-
-    // Despawn entities for chunks that have been unloaded
-    let unloaded: Vec<ChunkPos> = chunk_entities.0
-        .keys()
-        .filter(|pos| !world.chunks.contains_key(*pos))
-        .copied()
-        .collect();
-
-    for pos in unloaded {
-        if let Some(entity) = chunk_entities.0.remove(&pos) {
-            commands.entity(entity).despawn();
-        }
     }
 }

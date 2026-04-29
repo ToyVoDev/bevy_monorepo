@@ -28,7 +28,6 @@ pub fn spawn_debris(
     commands.spawn((
         DebrisParticle::new(voxel_id, velocity),
         Transform::from_translation(world_pos),
-        Visibility::Visible,
     ));
 }
 
