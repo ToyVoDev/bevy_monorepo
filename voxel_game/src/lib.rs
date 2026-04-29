@@ -8,6 +8,7 @@ pub mod types;
 pub mod world;
 
 use bevy::prelude::*;
+use std::sync::Arc;
 use game_mode::GameMode;
 use world::{ActiveWorldGenerator, WorldPlugin};
 use world::procedural::ProceduralGenerator;
@@ -26,7 +27,7 @@ impl Plugin for VoxelGamePlugin {
                 inventory::ui::cycle_hotbar,
             ))
             .insert_resource(GameMode::Creative)
-            .insert_resource(ActiveWorldGenerator(Box::new(
+            .insert_resource(ActiveWorldGenerator(Arc::new(
                 ProceduralGenerator::new(12345),
             )))
             .add_plugins((
