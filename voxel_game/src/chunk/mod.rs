@@ -7,7 +7,7 @@ use crate::config::CHUNK_SIZE;
 use crate::types::{VoxelId, LocalVoxelPos, AIR};
 use loading::{ChunkedWorld, PendingGeneration, GeneratingChunks,
               load_unload_chunks, spawn_generation_tasks, collect_generated_chunks};
-use rendering::{ChunkEntities, remesh_dirty_chunks};
+use rendering::{ChunkEntities, MeshingChunks, spawn_meshing_tasks, collect_meshed_chunks};
 
 pub struct ChunkPlugin;
 impl Plugin for ChunkPlugin {
@@ -17,10 +17,14 @@ impl Plugin for ChunkPlugin {
             .init_resource::<ChunkEntities>()
             .init_resource::<PendingGeneration>()
             .init_resource::<GeneratingChunks>()
-            .add_systems(Update, load_unload_chunks)
-            .add_systems(Update, spawn_generation_tasks.after(load_unload_chunks))
-            .add_systems(Update, collect_generated_chunks.after(spawn_generation_tasks))
-            .add_systems(Update, remesh_dirty_chunks.after(collect_generated_chunks));
+            .init_resource::<MeshingChunks>()
+            .add_systems(Update, (
+                load_unload_chunks,
+                spawn_generation_tasks.after(load_unload_chunks),
+                collect_generated_chunks.after(spawn_generation_tasks),
+                spawn_meshing_tasks.after(collect_generated_chunks),
+                collect_meshed_chunks.after(spawn_meshing_tasks),
+            ));
     }
 }
 
@@ -81,7 +85,7 @@ mod tests {
     #[test]
     fn set_marks_dirty() {
         let mut c = Chunk::new();
-        assert!(c.dirty);  // new chunk starts dirty so it gets meshed
+        assert!(c.dirty);
         c.dirty = false;
         c.set(LocalVoxelPos::new(0, 0, 0), crate::types::STONE);
         assert!(c.dirty);
