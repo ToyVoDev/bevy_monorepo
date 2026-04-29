@@ -6,20 +6,26 @@ use super::WorldGenerator;
 
 pub struct ProceduralGenerator {
     pub seed: u32,
-    pub surface_scale: f64,
     pub surface_amplitude: f64,
     pub surface_base_y: f64,
     pub cave_threshold: f64,
+    surface_noise: Fbm<Perlin>,
+    cave_noise: Perlin,
 }
 
 impl ProceduralGenerator {
     pub fn new(seed: u32) -> Self {
+        let surface_noise: Fbm<Perlin> = Fbm::new(seed)
+            .set_octaves(4)
+            .set_frequency(0.005);
+        let cave_noise = Perlin::new(seed.wrapping_add(1));
         Self {
             seed,
-            surface_scale: 0.005,
             surface_amplitude: 40.0,
             surface_base_y: 0.0,
             cave_threshold: 0.65,
+            surface_noise,
+            cave_noise,
         }
     }
 }
@@ -27,12 +33,6 @@ impl ProceduralGenerator {
 impl WorldGenerator for ProceduralGenerator {
     fn generate_chunk(&self, pos: ChunkPos) -> Chunk {
         let n = CHUNK_SIZE as i32;
-        let seed = self.seed;
-        let surface_noise: Fbm<Perlin> = Fbm::new(seed)
-            .set_octaves(4)
-            .set_frequency(self.surface_scale);
-        let cave_noise = Perlin::new(seed.wrapping_add(1));
-
         let mut chunk = Chunk::new();
 
         for lz in 0..n as u8 {
@@ -42,7 +42,7 @@ impl WorldGenerator for ProceduralGenerator {
 
                 let nx = wx as f64 * VOXEL_SIZE as f64;
                 let nz = wz as f64 * VOXEL_SIZE as f64;
-                let height_offset = surface_noise.get([nx, nz]) * self.surface_amplitude;
+                let height_offset = self.surface_noise.get([nx, nz]) * self.surface_amplitude;
                 let surface_voxel_y = (self.surface_base_y + height_offset) as i32;
 
                 for ly in 0..n as u8 {
@@ -55,7 +55,7 @@ impl WorldGenerator for ProceduralGenerator {
                     } else if wy > surface_voxel_y - 3 {
                         DIRT
                     } else {
-                        let cv = cave_noise.get([
+                        let cv = self.cave_noise.get([
                             wx as f64 * VOXEL_SIZE as f64 * 0.5,
                             wy as f64 * VOXEL_SIZE as f64 * 0.5,
                             wz as f64 * VOXEL_SIZE as f64 * 0.5,
