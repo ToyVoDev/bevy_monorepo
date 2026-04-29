@@ -5,7 +5,8 @@ pub mod rendering;
 use bevy::prelude::*;
 use crate::config::CHUNK_SIZE;
 use crate::types::{VoxelId, LocalVoxelPos, AIR};
-use loading::{ChunkedWorld, load_unload_chunks};
+use loading::{ChunkedWorld, PendingGeneration, GeneratingChunks,
+              load_unload_chunks, spawn_generation_tasks, collect_generated_chunks};
 use rendering::{ChunkEntities, remesh_dirty_chunks};
 
 pub struct ChunkPlugin;
@@ -14,9 +15,12 @@ impl Plugin for ChunkPlugin {
         app
             .init_resource::<ChunkedWorld>()
             .init_resource::<ChunkEntities>()
-            .init_resource::<loading::PriorityMeshQueue>()
+            .init_resource::<PendingGeneration>()
+            .init_resource::<GeneratingChunks>()
             .add_systems(Update, load_unload_chunks)
-            .add_systems(Update, remesh_dirty_chunks.after(load_unload_chunks));
+            .add_systems(Update, spawn_generation_tasks.after(load_unload_chunks))
+            .add_systems(Update, collect_generated_chunks.after(spawn_generation_tasks))
+            .add_systems(Update, remesh_dirty_chunks.after(collect_generated_chunks));
     }
 }
 
