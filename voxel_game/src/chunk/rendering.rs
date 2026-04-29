@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use avian3d::prelude::*;
 use std::collections::HashMap;
 use crate::chunk::loading::ChunkedWorld;
-use crate::chunk::meshing::greedy_mesh;
+use crate::chunk::meshing::{greedy_mesh, mesh_data_to_mesh, MeshData};
 use crate::types::ChunkPos;
 
 #[derive(Resource, Default)]
@@ -10,7 +10,7 @@ pub struct ChunkEntities(pub HashMap<ChunkPos, Entity>);
 
 pub const MAX_MESHES_PER_FRAME: usize = 4;
 
-fn mesh_to_collider(data: &crate::chunk::meshing::MeshData) -> Option<Collider> {
+fn mesh_to_collider(data: &MeshData) -> Option<Collider> {
     if data.positions.is_empty() || data.indices.is_empty() {
         return None;
     }
@@ -20,7 +20,6 @@ fn mesh_to_collider(data: &crate::chunk::meshing::MeshData) -> Option<Collider> 
     let indices: Vec<[u32; 3]> = data.indices.chunks(3)
         .filter_map(|t| if t.len() == 3 { Some([t[0], t[1], t[2]]) } else { None })
         .collect();
-    if vertices.is_empty() || indices.is_empty() { return None; }
     Some(Collider::trimesh(vertices, indices))
 }
 
@@ -77,7 +76,7 @@ pub fn remesh_dirty_chunks(
     for pos in dirty_positions {
         let Some(chunk) = world.get_mut(pos) else { continue };
         chunk.dirty = false;
-        let data = crate::chunk::meshing::greedy_mesh(&chunk.voxels);
+        let data = greedy_mesh(&chunk.voxels);
 
         if let Some(old) = chunk_entities.0.remove(&pos) {
             commands.entity(old).despawn();
@@ -85,7 +84,7 @@ pub fn remesh_dirty_chunks(
 
         if data.positions.is_empty() { continue; }
         let collider = mesh_to_collider(&data);
-        let mesh_handle = meshes.add(crate::chunk::meshing::mesh_data_to_mesh(&data));
+        let mesh_handle = meshes.add(mesh_data_to_mesh(&data));
 
         let mut entity_cmd = commands.spawn((
             Mesh3d(mesh_handle),

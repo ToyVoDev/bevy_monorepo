@@ -4,6 +4,7 @@ use bevy::render::render_asset::RenderAssetUsages;
 use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
 use crate::types::{VoxelId, AIR};
 
+#[derive(Debug)]
 pub struct MeshData {
     pub positions: Vec<[f32; 3]>,
     pub normals:   Vec<[f32; 3]>,
