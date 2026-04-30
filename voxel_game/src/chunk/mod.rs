@@ -32,10 +32,10 @@ impl Plugin for ChunkPlugin {
                 load_unload_chunks,
                 spawn_generation_tasks.after(load_unload_chunks),
                 collect_generated_chunks.after(spawn_generation_tasks),
-                spawn_meshing_tasks.after(collect_generated_chunks),
+                spawn_meshing_tasks.after(collect_generated_chunks).after(spawn_lod_meshing_tasks),
                 collect_meshed_chunks.after(spawn_meshing_tasks),
                 lod_coordinator.after(load_unload_chunks),
-                spawn_lod_meshing_tasks.after(lod_coordinator),
+                spawn_lod_meshing_tasks.after(lod_coordinator).after(collect_generated_chunks),
                 collect_lod_meshed_chunks.after(spawn_lod_meshing_tasks),
             ).in_set(PausableSystems));
     }

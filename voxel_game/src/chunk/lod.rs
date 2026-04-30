@@ -147,11 +147,11 @@ pub fn downsample(sources: Vec<Box<[VoxelId]>>, factor: usize) -> Box<[VoxelId]>
 
 pub const LOD1_INNER: i32 = 10; // 10 * 12.8m = 128m
 pub const LOD1_OUTER: i32 = 40; // 40 * 12.8m = 512m
-pub const LOD1_Y_RADIUS: i32 = 5;
+pub const LOD1_Y_RADIUS: i32 = 8;  // was 5; must be >= LOD2_Y_RADIUS*4+3
 
 pub const LOD2_INNER: i32 = 10; // 10 * 51.2m = 512m
 pub const LOD2_OUTER: i32 = 39; // 39 * 51.2m ≈ 2km
-pub const LOD2_Y_RADIUS: i32 = 3;
+pub const LOD2_Y_RADIUS: i32 = 1;  // was 3; ±51.2m vertical at LOD2 is sufficient
 
 pub fn lod_coordinator(
     player_query: Query<&Transform, With<crate::player::Player>>,
