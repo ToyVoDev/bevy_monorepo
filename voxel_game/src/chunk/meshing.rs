@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::asset::RenderAssetUsages;
-use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
+use crate::config::CHUNK_SIZE;
 use crate::types::{VoxelId, AIR};
 
 #[derive(Debug)]
@@ -202,6 +202,7 @@ fn emit_quads(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::VOXEL_SIZE;
     use crate::types::STONE;
 
     fn vertex_count(data: &MeshData) -> usize { data.positions.len() }
