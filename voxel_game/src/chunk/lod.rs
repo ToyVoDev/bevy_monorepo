@@ -4,6 +4,7 @@ use bevy::tasks::Task;
 use crate::chunk::meshing::MeshData;
 use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
 use crate::types::{VoxelId, ChunkPos, AIR};
+use crate::ui::screens::Screen;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LodLevel {
@@ -374,6 +375,8 @@ pub fn collect_lod_meshed_chunks(
             Mesh3d(mesh_handle),
             MeshMaterial3d(material_handle.clone()),
             Transform::from_translation(pos.to_world_origin()),
+            Visibility::default(),
+            DespawnOnExit(Screen::Gameplay),
             pos,
         )).id();
         super_entities.0.insert(pos, entity);
