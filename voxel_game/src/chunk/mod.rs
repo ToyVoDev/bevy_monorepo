@@ -40,6 +40,9 @@ impl Plugin for ChunkPlugin {
                 spawn_lod_meshing_tasks.after(lod_coordinator).after(collect_generated_chunks),
                 collect_lod_meshed_chunks.after(spawn_lod_meshing_tasks),
             ).in_set(PausableSystems))
+            // Generation + meshing also run during WorldLoading so spawn chunks generate before
+            // the player enters. Mutual exclusivity with PausableSystems (Gameplay-only) is
+            // maintained by the state conditions; both pipelines never fire in the same frame.
             .add_systems(Update, (
                 spawn_generation_tasks,
                 collect_generated_chunks.after(spawn_generation_tasks),
