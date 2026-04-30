@@ -127,8 +127,29 @@ pub fn solidify_resting_debris(
 
         let pos = transform.translation;
         let vx = (pos.x / VOXEL_SIZE).floor() as i32;
-        let vy = (pos.y / VOXEL_SIZE).floor() as i32;
         let vz = (pos.z / VOXEL_SIZE).floor() as i32;
+
+        // The floor-stop check fires on next_pos rather than the actual position, so the debris
+        // center can end up several voxels above the real surface when falling fast. Scan down
+        // from the debris position to find the first solid voxel and land on top of it.
+        let start_vy = (pos.y / VOXEL_SIZE).floor() as i32;
+        let vy = {
+            let mut found = start_vy;
+            for dy in 1..=64 {
+                let sy = start_vy - dy;
+                let chunk_pos = ChunkPos(vx.div_euclid(n), sy.div_euclid(n), vz.div_euclid(n));
+                let local = LocalVoxelPos::new(
+                    vx.rem_euclid(n) as u8,
+                    sy.rem_euclid(n) as u8,
+                    vz.rem_euclid(n) as u8,
+                );
+                if world.get(chunk_pos).map_or(false, |c| c.is_solid(local)) {
+                    found = sy + 1;
+                    break;
+                }
+            }
+            found
+        };
 
         let chunk_pos = ChunkPos(vx.div_euclid(n), vy.div_euclid(n), vz.div_euclid(n));
         let local = LocalVoxelPos::new(

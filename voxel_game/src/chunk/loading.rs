@@ -4,8 +4,8 @@ use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future};
 use crate::chunk::Chunk;
 use crate::types::ChunkPos;
 use crate::world::ActiveWorldGenerator;
+use crate::Settings;
 
-pub const LOAD_RADIUS: i32 = 10;
 pub const MAX_INFLIGHT_GENERATION: usize = 32;
 
 #[derive(Resource, Default)]
@@ -34,21 +34,23 @@ pub fn load_unload_chunks(
     mut world: ResMut<ChunkedWorld>,
     mut last_chunk: Local<Option<ChunkPos>>,
     mut pending: ResMut<PendingGeneration>,
+    settings: Res<Settings>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
     let player_chunk = ChunkPos::from_world(player_transform.translation);
+    let load_radius = settings.render_distance as i32;
 
     if *last_chunk != Some(player_chunk) {
         *last_chunk = Some(player_chunk);
 
         world.chunks.retain(|pos, _| {
-            (pos.0 - player_chunk.0).abs() <= LOAD_RADIUS
-                && (pos.1 - player_chunk.1).abs() <= LOAD_RADIUS
-                && (pos.2 - player_chunk.2).abs() <= LOAD_RADIUS
+            (pos.0 - player_chunk.0).abs() <= load_radius
+                && (pos.1 - player_chunk.1).abs() <= load_radius
+                && (pos.2 - player_chunk.2).abs() <= load_radius
         });
 
         pending.0.clear();
-        let r = LOAD_RADIUS;
+        let r = load_radius;
         for dx in -r..=r {
             for dy in -r..=r {
                 for dz in -r..=r {

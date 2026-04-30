@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
-use bevy::render::render_asset::RenderAssetUsages;
+use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
+use bevy::asset::RenderAssetUsages;
 use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
 use crate::types::{VoxelId, AIR};
 
@@ -9,7 +9,17 @@ pub struct MeshData {
     pub positions: Vec<[f32; 3]>,
     pub normals:   Vec<[f32; 3]>,
     pub uvs:       Vec<[f32; 2]>,
+    pub colors:    Vec<[f32; 4]>,
     pub indices:   Vec<u32>,
+}
+
+fn voxel_color(id: VoxelId) -> [f32; 4] {
+    match id {
+        crate::types::STONE   => [0.50, 0.50, 0.50, 1.0],
+        crate::types::DIRT    => [0.35, 0.20, 0.08, 1.0],
+        crate::types::TOPSOIL => [0.25, 0.50, 0.10, 1.0],
+        _                     => [1.00, 0.00, 1.00, 1.0],
+    }
 }
 
 #[inline(always)]
@@ -26,6 +36,7 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
     let mut positions: Vec<[f32; 3]> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
     let mut uvs: Vec<[f32; 2]> = Vec::new();
+    let mut colors: Vec<[f32; 4]> = Vec::new();
     let mut tri_indices: Vec<u32> = Vec::new();
 
     // Each axis d has a u-axis and v-axis for the 2D face plane
@@ -58,7 +69,7 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
             }
             done.fill(false);
             emit_quads(&mask, &mut done, n, layer + 1, d, u_ax, v_ax, false,
-                &mut positions, &mut normals, &mut uvs, &mut tri_indices);
+                &mut positions, &mut normals, &mut uvs, &mut colors, &mut tri_indices);
 
             // --- Back faces: voxel at `layer` solid, voxel at `layer-1` air ---
             mask.fill(AIR);
@@ -79,11 +90,11 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
             }
             done.fill(false);
             emit_quads(&mask, &mut done, n, layer, d, u_ax, v_ax, true,
-                &mut positions, &mut normals, &mut uvs, &mut tri_indices);
+                &mut positions, &mut normals, &mut uvs, &mut colors, &mut tri_indices);
         }
     }
 
-    MeshData { positions, normals, uvs, indices: tri_indices }
+    MeshData { positions, normals, uvs, colors, indices: tri_indices }
 }
 
 pub fn mesh_data_to_mesh(data: MeshData) -> Mesh {
@@ -91,6 +102,7 @@ pub fn mesh_data_to_mesh(data: MeshData) -> Mesh {
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, data.colors);
     mesh.insert_indices(Indices::U32(data.indices));
     mesh
 }
@@ -107,6 +119,7 @@ fn emit_quads(
     positions: &mut Vec<[f32; 3]>,
     normals: &mut Vec<[f32; 3]>,
     uvs: &mut Vec<[f32; 2]>,
+    colors: &mut Vec<[f32; 4]>,
     tri_indices: &mut Vec<u32>,
 ) {
     let s = VOXEL_SIZE;
@@ -165,10 +178,12 @@ fn emit_quads(
             let mut normal = [0.0f32; 3];
             normal[d] = if back_face { -1.0 } else { 1.0 };
 
+            let color = voxel_color(vtype);
             let base = positions.len() as u32;
             positions.extend_from_slice(&[p0, p1, p2, p3]);
             normals.extend_from_slice(&[normal, normal, normal, normal]);
             uvs.extend_from_slice(&[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]);
+            colors.extend_from_slice(&[color, color, color, color]);
 
             // CCW winding (Bevy default, right-hand system)
             if back_face {

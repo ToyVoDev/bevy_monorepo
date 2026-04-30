@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::chunk::loading::ChunkedWorld;
 use crate::chunk::meshing::{greedy_mesh, mesh_data_to_mesh, MeshData};
 use crate::types::{ChunkPos, VoxelId};
+use crate::ui::screens::Screen;
 
 #[derive(Resource, Default)]
 pub struct ChunkEntities(pub HashMap<ChunkPos, Entity>);
@@ -41,7 +42,7 @@ pub fn spawn_meshing_tasks(
         .collect();
     for pos in unloaded {
         if let Some(entity) = chunk_entities.0.remove(&pos) {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
     }
 
@@ -86,7 +87,7 @@ pub fn collect_meshed_chunks(
 ) {
     let material_handle = shared_material
         .get_or_insert_with(|| materials.add(StandardMaterial {
-            base_color: Color::srgb(0.5, 0.45, 0.4),
+            base_color: Color::WHITE,
             ..default()
         }))
         .clone();
@@ -103,7 +104,7 @@ pub fn collect_meshed_chunks(
 
     for (pos, data) in completed {
         if let Some(old) = chunk_entities.0.remove(&pos) {
-            commands.entity(old).despawn_recursive();
+            commands.entity(old).despawn();
         }
         if data.positions.is_empty() {
             continue;
@@ -117,6 +118,7 @@ pub fn collect_meshed_chunks(
             Visibility::default(),
             RigidBody::Static,
             pos,
+            DespawnOnExit(Screen::Gameplay),
         ));
         if let Some(col) = collider {
             entity_cmd.insert(col);

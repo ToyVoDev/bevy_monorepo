@@ -1,5 +1,6 @@
 [package]
 name = "voxel_game"
+authors = ["Collin Diekvoss <Collin@Diekvoss.com>"]
 version = "0.1.0"
 edition = "2024"
 
@@ -12,12 +13,13 @@ dev = [
 dev_native = ["dev", "bevy/file_watcher"]
 
 [dependencies]
-bevy = "0.16"
-avian3d = { version = "0.3", features = ["3d", "f32", "parry-f32"] }
+bevy = { version = "0.18", default-features = false, features = ["3d", "default_font"] }
+avian3d = { version = "0.6", features = ["3d", "f32", "parry-f32"] }
 serde = { version = "1", features = ["derive"] }
 noise = "0.9"
 ron = "0.8"
 bincode = "1.3"
+rodio = { version = "0.20", default-features = false }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

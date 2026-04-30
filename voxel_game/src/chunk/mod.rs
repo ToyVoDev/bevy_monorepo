@@ -4,6 +4,7 @@ pub mod rendering;
 
 use bevy::prelude::*;
 use crate::config::CHUNK_SIZE;
+use crate::PausableSystems;
 use crate::types::{VoxelId, LocalVoxelPos, AIR};
 use loading::{ChunkedWorld, PendingGeneration, GeneratingChunks,
               load_unload_chunks, spawn_generation_tasks, collect_generated_chunks};
@@ -24,7 +25,7 @@ impl Plugin for ChunkPlugin {
                 collect_generated_chunks.after(spawn_generation_tasks),
                 spawn_meshing_tasks.after(collect_generated_chunks),
                 collect_meshed_chunks.after(spawn_meshing_tasks),
-            ));
+            ).in_set(PausableSystems));
     }
 }
 

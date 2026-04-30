@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::chunk::loading::ChunkedWorld;
 use crate::config::VOXEL_SIZE;
 use crate::types::{ChunkPos, LocalVoxelPos, VoxelId, AIR};
+use crate::ui::audio::procedural::DigNoise;
 
 pub const REACH: f32 = 5.0;
 
@@ -34,14 +35,14 @@ pub fn raycast_voxels(
     let origin_voxel = (origin / VOXEL_SIZE).floor();
     let mut t_max = Vec3::new(
         if dir.x.abs() < f32::EPSILON { f32::MAX }
-        else if dir.x >= 0.0 { ((origin_voxel.x + 1.0) - origin.x / VOXEL_SIZE) * VOXEL_SIZE }
-        else { (origin.x / VOXEL_SIZE - origin_voxel.x) * VOXEL_SIZE },
+        else if dir.x >= 0.0 { ((origin_voxel.x + 1.0) - origin.x / VOXEL_SIZE) * delta.x }
+        else { (origin.x / VOXEL_SIZE - origin_voxel.x) * delta.x },
         if dir.y.abs() < f32::EPSILON { f32::MAX }
-        else if dir.y >= 0.0 { ((origin_voxel.y + 1.0) - origin.y / VOXEL_SIZE) * VOXEL_SIZE }
-        else { (origin.y / VOXEL_SIZE - origin_voxel.y) * VOXEL_SIZE },
+        else if dir.y >= 0.0 { ((origin_voxel.y + 1.0) - origin.y / VOXEL_SIZE) * delta.y }
+        else { (origin.y / VOXEL_SIZE - origin_voxel.y) * delta.y },
         if dir.z.abs() < f32::EPSILON { f32::MAX }
-        else if dir.z >= 0.0 { ((origin_voxel.z + 1.0) - origin.z / VOXEL_SIZE) * VOXEL_SIZE }
-        else { (origin.z / VOXEL_SIZE - origin_voxel.z) * VOXEL_SIZE },
+        else if dir.z >= 0.0 { ((origin_voxel.z + 1.0) - origin.z / VOXEL_SIZE) * delta.z }
+        else { (origin.z / VOXEL_SIZE - origin_voxel.z) * delta.z },
     );
     let mut last_normal = IVec3::ZERO;
     let mut dist = 0.0_f32;
@@ -113,11 +114,19 @@ pub fn handle_break_place(
     mut inventory: ResMut<Inventory>,
     game_mode: Res<GameMode>,
     assets: Res<crate::simulation::debris::DebrisAssets>,
+    mut dig_noise_assets: ResMut<Assets<DigNoise>>,
 ) {
     if mouse.just_pressed(MouseButton::Left) {
         if let Some(hit) = &targeted.0 {
             let tool = inventory.active_tool;
             if !tool.can_break(hit.voxel_id) { return; }
+
+            // Spawn dig sound effect
+            let noise_handle = dig_noise_assets.add(DigNoise);
+            commands.spawn((
+                AudioPlayer(noise_handle),
+                PlaybackSettings::DESPAWN,
+            ));
 
             if let Some(chunk) = world.get_mut(hit.chunk) {
                 let voxel_id = chunk.get(hit.local);

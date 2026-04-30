@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use avian3d::prelude::*;
 use super::Player;
 use super::camera::PlayerCamera;
+use crate::ui::screens::Screen;
 
 pub fn spawn_player(mut commands: Commands) {
     commands.spawn((
@@ -16,6 +17,7 @@ pub fn spawn_player(mut commands: Commands) {
         LinearVelocity::default(),
         Transform::from_xyz(0.5, 5.0, 0.5),
         Visibility::Hidden,
+        DespawnOnExit(Screen::Gameplay),
     ));
 }
 

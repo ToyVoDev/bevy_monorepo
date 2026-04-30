@@ -1,6 +1,7 @@
 pub mod debris;
 
 use bevy::prelude::*;
+use crate::PausableSystems;
 
 pub struct SimulationPlugin;
 impl Plugin for SimulationPlugin {
@@ -9,6 +10,6 @@ impl Plugin for SimulationPlugin {
            .add_systems(Update, (
                debris::tick_debris,
                debris::solidify_resting_debris,
-           ));
+           ).in_set(PausableSystems));
     }
 }

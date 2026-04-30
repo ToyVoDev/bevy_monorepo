@@ -1,17 +1,26 @@
 use bevy::prelude::*;
 use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
+use crate::player::camera::PlayerCamera;
 use crate::player::interaction::TargetedVoxel;
+use crate::Settings;
+use crate::ui::screens::Screen;
+
+#[derive(Component)]
+pub struct CoordinatesText;
 
 pub fn spawn_hud(mut commands: Commands) {
     // Full-screen flex container, centers children
-    commands.spawn(Node {
-        width: Val::Percent(100.0),
-        height: Val::Percent(100.0),
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        position_type: PositionType::Absolute,
-        ..default()
-    }).with_children(|root| {
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        DespawnOnExit(Screen::Gameplay),
+    )).with_children(|root| {
         // Zero-size anchor at screen center
         root.spawn(Node::default()).with_children(|center| {
             // Horizontal bar
@@ -40,6 +49,45 @@ pub fn spawn_hud(mut commands: Commands) {
             ));
         });
     });
+
+    // Coordinates text in top-left corner
+    commands.spawn((
+        CoordinatesText,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            left: Val::Px(10.0),
+            ..default()
+        },
+        Text("".to_string()),
+        TextFont::from_font_size(16.0),
+        TextColor(Color::srgba(1.0, 1.0, 1.0, 0.8)),
+        Visibility::Hidden,
+        DespawnOnExit(Screen::Gameplay),
+    ));
+}
+
+pub fn update_coordinates(
+    settings: Res<Settings>,
+    camera_query: Query<&Transform, With<PlayerCamera>>,
+    mut text_query: Query<(&mut Text, &mut Visibility), With<CoordinatesText>>,
+) {
+    let Ok((mut text, mut visibility)) = text_query.single_mut() else { return };
+
+    if !settings.show_coordinates {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    *visibility = Visibility::Visible;
+
+    let Ok(cam) = camera_query.single() else {
+        text.0 = "No camera".to_string();
+        return;
+    };
+
+    let pos = cam.translation;
+    text.0 = format!("X: {:.1}  Y: {:.1}  Z: {:.1}", pos.x, pos.y, pos.z);
 }
 
 #[derive(Component)]
@@ -64,6 +112,7 @@ pub fn spawn_highlight(
         })),
         Transform::default(),
         Visibility::Hidden,
+        DespawnOnExit(Screen::Gameplay),
     ));
 }
 

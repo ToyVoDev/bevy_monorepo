@@ -1,5 +1,6 @@
 {
   inputs = {
+    bevy_cli.url = "github:TheBevyFlock/bevy_cli";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
@@ -32,6 +33,7 @@
       nixpkgs,
       flake-parts,
       devshell,
+      bevy_cli,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -100,7 +102,8 @@
                   ]
                   ++ lib.optionals stdenv.isDarwin [
                     darwin.apple_sdk.frameworks.SystemConfiguration
-                  ] ++ lib.optionals stdenv.isLinux [
+                  ]
+                  ++ lib.optionals stdenv.isLinux [
                     alsa-lib.dev
                     udev.dev
                     xorg.libX11
@@ -138,22 +141,24 @@
               export RUST_SRC_PATH=${pkgs.rustPlatform.rustLibSrc}
               export LD_LIBRARY_PATH=${lib.makeLibraryPath buildInputs}
             '';
-            buildInputs = with pkgs; lib.optionals stdenv.isLinux [
-              alsa-lib.dev
-              udev.dev
-              xorg.libX11
-              xorg.libXrandr
-              xorg.libXcursor
-              xorg.libxcb
-              xorg.libXi
-              wayland
-              libxkbcommon
-              libxkbcommon.dev
-              vulkan-loader
-              vulkan-tools
-              glfw
-              xorg.xf86videoamdgpu
-            ];
+            buildInputs =
+              with pkgs;
+              lib.optionals stdenv.isLinux [
+                alsa-lib.dev
+                udev.dev
+                xorg.libX11
+                xorg.libXrandr
+                xorg.libXcursor
+                xorg.libxcb
+                xorg.libXi
+                wayland
+                libxkbcommon
+                libxkbcommon.dev
+                vulkan-loader
+                vulkan-tools
+                glfw
+                xorg.xf86videoamdgpu
+              ];
             nativeBuildInputs = with pkgs; [
               self'.packages.rustToolchain
               pkg-config
@@ -163,6 +168,9 @@
               systemfd
               binaryen
               just
+              (bevy_cli.packages.${system}.bevy.overrideAttrs (oldAttrs: {
+                buildInputs = (oldAttrs.buildInputs or [ ]) ++ lib.optionals stdenv.isDarwin [ zlib ];
+              }))
             ];
           };
         };
