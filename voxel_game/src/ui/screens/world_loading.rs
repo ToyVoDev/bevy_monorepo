@@ -17,6 +17,7 @@ fn enter_world_loading(
     mut commands: Commands,
     settings: Res<Settings>,
     mut pending: ResMut<PendingGeneration>,
+    world: Res<ChunkedWorld>,
 ) {
     commands.spawn((
         widget::ui_root("World Loading Screen"),
@@ -29,13 +30,17 @@ fn enter_world_loading(
     for dx in -r..=r {
         for dy in -r..=r {
             for dz in -r..=r {
-                pending.0.push_back(ChunkPos(dx, dy, dz));
+                let pos = ChunkPos(dx, dy, dz);
+                if !world.chunks.contains_key(&pos) {
+                    pending.0.push_back(pos);
+                }
             }
         }
     }
+    // Spawn is always at origin, so relative distance == absolute distance.
     pending.0.make_contiguous().sort_unstable_by_key(|p| {
-        let xz = p.0.abs() + p.2.abs();
-        let dy = p.1;
+        let xz = (p.0.abs() + p.2.abs()) as i64;
+        let dy = p.1 as i64;
         let y_cost = if dy < 0 { (-dy) * 4 } else { dy };
         xz + y_cost
     });
