@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use bevy::tasks::Task;
 use crate::chunk::meshing::MeshData;
 use crate::config::{CHUNK_SIZE, VOXEL_SIZE};
-use crate::types::{VoxelId, ChunkPos};
+use crate::types::{VoxelId, ChunkPos, AIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LodLevel {
@@ -95,6 +95,54 @@ pub struct MeshingLodChunks(pub HashMap<SuperChunkPos, Task<(MeshData, Box<[Voxe
 #[derive(Resource, Default)]
 pub struct SuperChunkEntities(pub HashMap<SuperChunkPos, Entity>);
 
+/// Collapse 64 source voxel slices (a 4×4×4 grid of chunks, indexed cx + cy*4 + cz*16)
+/// into a single CHUNK_SIZE³ voxel grid at `factor`× lower resolution.
+/// Each output voxel is the most common non-air type in its factor³ source region,
+/// or AIR if all source voxels are air.
+pub fn downsample(sources: Vec<Box<[VoxelId]>>, factor: usize) -> Box<[VoxelId]> {
+    let n = CHUNK_SIZE;
+    let mut out = vec![AIR; n * n * n].into_boxed_slice();
+
+    for oz in 0..n {
+        for oy in 0..n {
+            for ox in 0..n {
+                let mut best_id = AIR;
+                let mut best_count = 0u32;
+                let mut counts = [0u32; 256];
+
+                for fz in 0..factor {
+                    for fy in 0..factor {
+                        for fx in 0..factor {
+                            let sx = ox * factor + fx;
+                            let sy = oy * factor + fy;
+                            let sz = oz * factor + fz;
+                            let cx = sx / n;
+                            let cy = sy / n;
+                            let cz = sz / n;
+                            let ci = cx + cy * 4 + cz * 16;
+                            let lx = sx % n;
+                            let ly = sy % n;
+                            let lz = sz % n;
+                            let vi = lx + ly * n + lz * n * n;
+                            let id = sources[ci][vi];
+                            if id != AIR {
+                                let slot = (id as usize).min(255);
+                                counts[slot] += 1;
+                                if counts[slot] > best_count {
+                                    best_count = counts[slot];
+                                    best_id = id;
+                                }
+                            }
+                        }
+                    }
+                }
+                out[ox + oy * n + oz * n * n] = best_id;
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +204,43 @@ mod tests {
         let sub = sp.lod1_super_chunks();
         assert_eq!(sub.len(), 64);
         assert_eq!(sub[0].level, LodLevel::Lod1);
+    }
+
+    #[test]
+    fn downsample_all_stone_stays_stone() {
+        use crate::types::STONE;
+        let n = CHUNK_SIZE;
+        let solid: Box<[VoxelId]> = vec![STONE; n * n * n].into_boxed_slice();
+        let sources: Vec<Box<[VoxelId]>> = (0..64).map(|_| solid.clone()).collect();
+        let out = downsample(sources, 4);
+        assert_eq!(out.len(), n * n * n);
+        assert!(out.iter().all(|&v| v == STONE), "expected all stone");
+    }
+
+    #[test]
+    fn downsample_all_air_stays_air() {
+        let n = CHUNK_SIZE;
+        let empty: Box<[VoxelId]> = vec![AIR; n * n * n].into_boxed_slice();
+        let sources: Vec<Box<[VoxelId]>> = (0..64).map(|_| empty.clone()).collect();
+        let out = downsample(sources, 4);
+        assert!(out.iter().all(|&v| v == AIR), "expected all air");
+    }
+
+    #[test]
+    fn downsample_majority_wins() {
+        use crate::types::{STONE, DIRT};
+        let n = CHUNK_SIZE;
+        // Output voxel (0,0,0) samples source voxels (0..4, 0..4, 0..4).
+        // That 4×4×4=64 cube lives entirely within chunk index 0 (cx=0,cy=0,cz=0).
+        // Output voxel (8,0,0) samples source voxels (32..36, 0..4, 0..4).
+        // sx=32 is in cx=1. So if sources[0] is all stone and the rest are dirt,
+        // output voxel (0,0,0) = stone; output voxel (8,0,0) = dirt.
+        let stone_chunk: Box<[VoxelId]> = vec![STONE; n * n * n].into_boxed_slice();
+        let dirt_chunk: Box<[VoxelId]> = vec![DIRT; n * n * n].into_boxed_slice();
+        let mut sources: Vec<Box<[VoxelId]>> = (0..64).map(|_| dirt_chunk.clone()).collect();
+        sources[0] = stone_chunk;
+        let out = downsample(sources, 4);
+        assert_eq!(out[0], STONE, "voxel (0,0,0) should be stone");
+        assert_eq!(out[8], DIRT,  "voxel (8,0,0) should be dirt");
     }
 }
