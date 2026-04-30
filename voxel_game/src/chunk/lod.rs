@@ -157,6 +157,7 @@ pub fn lod_coordinator(
     mut super_world: ResMut<SuperChunkedWorld>,
     mut super_entities: ResMut<SuperChunkEntities>,
     mut pending: ResMut<PendingSuperChunks>,
+    meshing: Res<MeshingLodChunks>,
     mut commands: Commands,
     mut last_lod1_pos: Local<Option<SuperChunkPos>>,
 ) {
@@ -211,7 +212,7 @@ pub fn lod_coordinator(
                     z: player_lod1.z + dz,
                     level: LodLevel::Lod1,
                 };
-                if !super_world.chunks.contains_key(&sp) {
+                if !super_world.chunks.contains_key(&sp) && !meshing.0.contains_key(&sp) {
                     pending.0.push_back(sp);
                 }
             }
@@ -230,7 +231,7 @@ pub fn lod_coordinator(
                     z: player_lod2.z + dz,
                     level: LodLevel::Lod2,
                 };
-                if !super_world.chunks.contains_key(&sp) {
+                if !super_world.chunks.contains_key(&sp) && !meshing.0.contains_key(&sp) {
                     pending.0.push_back(sp);
                 }
             }
