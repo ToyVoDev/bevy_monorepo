@@ -43,7 +43,11 @@ impl Plugin for AppPlugin {
 
         // Set up the `Pause` state.
         app.init_state::<Pause>();
-        app.configure_sets(Update, PausableSystems.run_if(in_state(Pause(false)).and(in_state(Screen::Gameplay))));
+        app.configure_sets(Update, PausableSystems.run_if(
+            in_state(Pause(false)).and(
+                in_state(Screen::Gameplay).or(in_state(Screen::WorldLoading))
+            )
+        ));
 
         // Order new `AppSystems` variants by adding them here:
         app.configure_sets(

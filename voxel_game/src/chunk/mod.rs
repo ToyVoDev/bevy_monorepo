@@ -30,6 +30,9 @@ impl Plugin for ChunkPlugin {
             .init_resource::<SuperChunkEntities>()
             .init_resource::<PendingSuperChunks>()
             .init_resource::<MeshingLodChunks>()
+            // PausableSystems runs in Screen::Gameplay and Screen::WorldLoading (see main.rs).
+            // load_unload_chunks and LOD systems are no-ops without a player entity, so running
+            // them in WorldLoading is harmless; the generation + meshing pipeline does the work.
             .add_systems(Update, (
                 load_unload_chunks,
                 spawn_generation_tasks.after(load_unload_chunks),
@@ -39,19 +42,7 @@ impl Plugin for ChunkPlugin {
                 lod_coordinator.after(load_unload_chunks),
                 spawn_lod_meshing_tasks.after(lod_coordinator).after(collect_generated_chunks),
                 collect_lod_meshed_chunks.after(spawn_lod_meshing_tasks),
-            ).in_set(PausableSystems))
-            // Generation + meshing also run during WorldLoading so spawn chunks generate before
-            // the player enters. Mutual exclusivity with PausableSystems (Gameplay-only) is
-            // maintained by the state conditions; both pipelines never fire in the same frame.
-            // .chain() is used instead of .after() because these functions are also registered
-            // in PausableSystems above; Bevy cannot disambiguate SystemTypeSet ordering when
-            // the same function appears more than once in the schedule.
-            .add_systems(Update, (
-                spawn_generation_tasks,
-                collect_generated_chunks,
-                spawn_meshing_tasks,
-                collect_meshed_chunks,
-            ).chain().run_if(in_state(Screen::WorldLoading)));
+            ).in_set(PausableSystems));
     }
 }
 
