@@ -21,6 +21,7 @@ pub(super) fn plugin(app: &mut App) {
         crate::despawn_ui_camera,
         player::camera::spawn_camera,
         player::hud::spawn_highlight,
+        player::controller::spawn_player,
     ));
 
     // Toggle pause on key press.
@@ -85,8 +86,7 @@ fn spawn_gameplay(
         ],
     ));
 
-    // Spawn player, camera, HUD
-    player::controller::spawn_player(commands.reborrow());
+    // Spawn HUD and inventory
     player::hud::spawn_hud(commands.reborrow());
     inventory::ui::spawn_hotbar(commands.reborrow());
 }
