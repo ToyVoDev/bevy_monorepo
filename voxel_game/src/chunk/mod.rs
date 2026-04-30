@@ -43,12 +43,15 @@ impl Plugin for ChunkPlugin {
             // Generation + meshing also run during WorldLoading so spawn chunks generate before
             // the player enters. Mutual exclusivity with PausableSystems (Gameplay-only) is
             // maintained by the state conditions; both pipelines never fire in the same frame.
+            // .chain() is used instead of .after() because these functions are also registered
+            // in PausableSystems above; Bevy cannot disambiguate SystemTypeSet ordering when
+            // the same function appears more than once in the schedule.
             .add_systems(Update, (
                 spawn_generation_tasks,
-                collect_generated_chunks.after(spawn_generation_tasks),
-                spawn_meshing_tasks.after(collect_generated_chunks),
-                collect_meshed_chunks.after(spawn_meshing_tasks),
-            ).run_if(in_state(Screen::WorldLoading)));
+                collect_generated_chunks,
+                spawn_meshing_tasks,
+                collect_meshed_chunks,
+            ).chain().run_if(in_state(Screen::WorldLoading)));
     }
 }
 
