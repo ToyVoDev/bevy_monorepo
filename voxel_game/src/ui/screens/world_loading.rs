@@ -5,6 +5,11 @@ use crate::chunk::loading::{ChunkedWorld, PendingGeneration};
 use crate::types::ChunkPos;
 use crate::Settings;
 
+const MIN_DISPLAY_SECS: f32 = 3.0;
+
+#[derive(Resource)]
+struct WorldLoadingTimer(Timer);
+
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::WorldLoading), enter_world_loading);
     app.add_systems(
@@ -19,6 +24,8 @@ fn enter_world_loading(
     mut pending: ResMut<PendingGeneration>,
     world: Res<ChunkedWorld>,
 ) {
+    info!("WorldLoading: entered (spawn_radius={})", settings.spawn_radius);
+
     commands.spawn((
         widget::ui_root("World Loading Screen"),
         DespawnOnExit(Screen::WorldLoading),
@@ -44,16 +51,38 @@ fn enter_world_loading(
         let y_cost = if dy < 0 { (-dy) * 4 } else { dy };
         xz + y_cost
     });
+
+    info!("WorldLoading: queued {} chunks to generate", pending.0.len());
+    commands.insert_resource(WorldLoadingTimer(Timer::from_seconds(
+        MIN_DISPLAY_SECS,
+        TimerMode::Once,
+    )));
 }
 
 fn check_spawn_ready(
     world: Res<ChunkedWorld>,
     settings: Res<Settings>,
     mut next_screen: ResMut<NextState<Screen>>,
+    mut timer: ResMut<WorldLoadingTimer>,
+    time: Res<Time>,
 ) {
-    if all_spawn_chunks_present(&world, settings.spawn_radius) {
-        next_screen.set(Screen::Gameplay);
+    timer.0.tick(time.delta());
+
+    let r = settings.spawn_radius as i32;
+    let total = ((r * 2 + 1) as usize).pow(3);
+    let loaded = world.chunks.len().min(total);
+
+    if !timer.0.is_finished() || !all_spawn_chunks_present(&world, settings.spawn_radius) {
+        // Log progress once per second via the timer's elapsed
+        let elapsed = timer.0.elapsed_secs();
+        if (elapsed * 2.0) as u32 != ((elapsed * 2.0 - time.delta_secs() * 2.0) as u32) {
+            info!("WorldLoading: {}/{} chunks loaded ({:.1}s elapsed)", loaded, total, elapsed);
+        }
+        return;
     }
+
+    info!("WorldLoading: all {} chunks ready — transitioning to Gameplay", total);
+    next_screen.set(Screen::Gameplay);
 }
 
 /// Returns true when every ChunkPos within `radius` of origin is in `world`.
