@@ -42,8 +42,36 @@ impl Plugin for ChunkPlugin {
                 lod_coordinator.after(load_unload_chunks),
                 spawn_lod_meshing_tasks.after(lod_coordinator).after(collect_generated_chunks),
                 collect_lod_meshed_chunks.after(spawn_lod_meshing_tasks),
-            ).in_set(PausableSystems));
+            ).in_set(PausableSystems))
+            // Clear all chunk state when leaving Gameplay so the next WorldLoading starts fresh.
+            // Mesh entities are already despawned by DespawnOnExit(Screen::Gameplay); clearing
+            // the resource maps prevents stale entity IDs from causing double-despawn warnings
+            // and ensures chunks are re-generated and re-meshed on the next play.
+            .add_systems(OnExit(Screen::Gameplay), reset_chunk_state);
     }
+}
+
+fn reset_chunk_state(
+    mut world: ResMut<ChunkedWorld>,
+    mut chunk_entities: ResMut<ChunkEntities>,
+    mut pending: ResMut<PendingGeneration>,
+    mut generating: ResMut<GeneratingChunks>,
+    mut meshing: ResMut<MeshingChunks>,
+    mut super_world: ResMut<SuperChunkedWorld>,
+    mut super_entities: ResMut<SuperChunkEntities>,
+    mut pending_super: ResMut<PendingSuperChunks>,
+    mut meshing_lod: ResMut<MeshingLodChunks>,
+) {
+    world.chunks.clear();
+    chunk_entities.0.clear();
+    pending.0.clear();
+    generating.0.clear();
+    meshing.0.clear();
+    super_world.chunks.clear();
+    super_entities.0.clear();
+    pending_super.0.clear();
+    meshing_lod.0.clear();
+    info!("Chunk state cleared on Gameplay exit");
 }
 
 #[derive(Debug)]
