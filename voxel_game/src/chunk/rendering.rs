@@ -33,6 +33,7 @@ pub fn spawn_meshing_tasks(
     mut world: ResMut<ChunkedWorld>,
     mut chunk_entities: ResMut<ChunkEntities>,
     mut meshing: ResMut<MeshingChunks>,
+    lod_meshing: Res<crate::chunk::lod::MeshingLodChunks>,
 ) {
     // Despawn entities for chunks that have been unloaded
     let unloaded: Vec<ChunkPos> = chunk_entities.0
@@ -59,7 +60,7 @@ pub fn spawn_meshing_tasks(
         .collect();
 
     // New dirty chunks (just generated), capped to avoid flooding the task pool
-    let capacity = MAX_INFLIGHT_MESHING.saturating_sub(meshing.0.len());
+    let capacity = MAX_INFLIGHT_MESHING.saturating_sub(meshing.0.len() + lod_meshing.0.len());
     let new_dirty: Vec<ChunkPos> = world.chunks
         .iter()
         .filter(|(p, c)| c.dirty && !chunk_entities.0.contains_key(p) && !meshing.0.contains_key(p))

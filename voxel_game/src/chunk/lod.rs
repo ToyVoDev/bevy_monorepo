@@ -256,13 +256,14 @@ pub fn spawn_lod_meshing_tasks(
     super_world: Res<SuperChunkedWorld>,
     mut meshing: ResMut<MeshingLodChunks>,
     mut pending: ResMut<PendingSuperChunks>,
+    lod0_meshing: Res<crate::chunk::rendering::MeshingChunks>,
 ) {
     use crate::chunk::rendering::MAX_INFLIGHT_MESHING;
     use crate::chunk::meshing::greedy_mesh;
     use bevy::tasks::AsyncComputeTaskPool;
 
     let task_pool = AsyncComputeTaskPool::get();
-    let capacity = MAX_INFLIGHT_MESHING.saturating_sub(meshing.0.len());
+    let capacity = MAX_INFLIGHT_MESHING.saturating_sub(meshing.0.len() + lod0_meshing.0.len());
     let mut spawned = 0;
     let mut requeue: Vec<SuperChunkPos> = Vec::new();
 
