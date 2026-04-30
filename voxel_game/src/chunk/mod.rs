@@ -1,6 +1,7 @@
 pub mod meshing;
 pub mod loading;
 pub mod rendering;
+pub mod lod;
 
 use bevy::prelude::*;
 use crate::config::CHUNK_SIZE;
@@ -61,6 +62,21 @@ impl Chunk {
     pub fn is_solid(&self, pos: LocalVoxelPos) -> bool {
         self.get(pos) != AIR
     }
+}
+
+pub struct SuperChunk {
+    pub voxels: Box<[VoxelId]>,
+}
+
+impl SuperChunk {
+    pub fn new() -> Self {
+        let n = CHUNK_SIZE;
+        Self { voxels: vec![AIR; n * n * n].into_boxed_slice() }
+    }
+}
+
+impl Default for SuperChunk {
+    fn default() -> Self { Self::new() }
 }
 
 #[cfg(test)]
