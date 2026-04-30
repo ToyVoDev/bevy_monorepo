@@ -10,6 +10,10 @@ use crate::types::{VoxelId, LocalVoxelPos, AIR};
 use loading::{ChunkedWorld, PendingGeneration, GeneratingChunks,
               load_unload_chunks, spawn_generation_tasks, collect_generated_chunks};
 use rendering::{ChunkEntities, MeshingChunks, spawn_meshing_tasks, collect_meshed_chunks};
+use lod::{
+    SuperChunkedWorld, PendingSuperChunks, MeshingLodChunks, SuperChunkEntities,
+    lod_coordinator, spawn_lod_meshing_tasks, collect_lod_meshed_chunks,
+};
 
 pub struct ChunkPlugin;
 impl Plugin for ChunkPlugin {
@@ -20,12 +24,19 @@ impl Plugin for ChunkPlugin {
             .init_resource::<PendingGeneration>()
             .init_resource::<GeneratingChunks>()
             .init_resource::<MeshingChunks>()
+            .init_resource::<SuperChunkedWorld>()
+            .init_resource::<SuperChunkEntities>()
+            .init_resource::<PendingSuperChunks>()
+            .init_resource::<MeshingLodChunks>()
             .add_systems(Update, (
                 load_unload_chunks,
                 spawn_generation_tasks.after(load_unload_chunks),
                 collect_generated_chunks.after(spawn_generation_tasks),
                 spawn_meshing_tasks.after(collect_generated_chunks),
                 collect_meshed_chunks.after(spawn_meshing_tasks),
+                lod_coordinator.after(load_unload_chunks),
+                spawn_lod_meshing_tasks.after(lod_coordinator),
+                collect_lod_meshed_chunks.after(spawn_lod_meshing_tasks),
             ).in_set(PausableSystems));
     }
 }
