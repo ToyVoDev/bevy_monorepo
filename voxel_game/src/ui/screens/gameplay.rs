@@ -22,6 +22,7 @@ pub(super) fn plugin(app: &mut App) {
         player::camera::spawn_camera,
         player::hud::spawn_highlight,
         player::controller::spawn_player,
+        capture_cursor,
     ));
 
     // Toggle pause on key press.
@@ -43,7 +44,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnExit(Screen::Gameplay), (close_menu, unpause, despawn_gameplay, crate::spawn_ui_camera));
     app.add_systems(
         OnEnter(Menu::None),
-        unpause.run_if(in_state(Screen::Gameplay)),
+        (unpause, capture_cursor).run_if(in_state(Screen::Gameplay)),
     );
 }
 
@@ -128,4 +129,10 @@ fn open_pause_menu(mut next_menu: ResMut<NextState<Menu>>) {
 
 fn close_menu(mut next_menu: ResMut<NextState<Menu>>) {
     next_menu.set(Menu::None);
+}
+
+fn capture_cursor(mut cursor_options_query: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+    let Ok(mut cursor_options) = cursor_options_query.single_mut() else { return };
+    cursor_options.grab_mode = CursorGrabMode::Locked;
+    cursor_options.visible = false;
 }
