@@ -40,6 +40,7 @@ pub struct Settings {
     pub fov: f32,
     pub render_distance: u32,
     pub show_coordinates: bool,
+    pub spawn_radius: u32,
 }
 
 impl Default for Settings {
@@ -50,6 +51,7 @@ impl Default for Settings {
             fov: 90.0,
             render_distance: 8,
             show_coordinates: false,
+            spawn_radius: 3,
         }
     }
 }
@@ -96,5 +98,15 @@ impl Plugin for VoxelGamePlugin {
             )
                 .in_set(PausableSystems),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_default_spawn_radius() {
+        assert_eq!(Settings::default().spawn_radius, 3);
     }
 }
