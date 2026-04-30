@@ -31,7 +31,8 @@ fn at(voxels: &[VoxelId], x: usize, y: usize, z: usize) -> VoxelId {
 /// Generates a greedy-merged triangle mesh from a flat voxel array.
 /// `voxels` must have length `CHUNK_SIZE³`, indexed as x + y*N + z*N*N.
 /// Faces between two solid voxels are culled. Only boundary faces are emitted.
-pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
+/// `voxel_size` scales the geometry coordinates (e.g., 0.1 for LOD0, 0.4 for LOD1).
+pub fn greedy_mesh(voxels: &[VoxelId], voxel_size: f32) -> MeshData {
     let n = CHUNK_SIZE;
     let mut positions: Vec<[f32; 3]> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
@@ -69,7 +70,7 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
             }
             done.fill(false);
             emit_quads(&mask, &mut done, n, layer + 1, d, u_ax, v_ax, false,
-                &mut positions, &mut normals, &mut uvs, &mut colors, &mut tri_indices);
+                &mut positions, &mut normals, &mut uvs, &mut colors, &mut tri_indices, voxel_size);
 
             // --- Back faces: voxel at `layer` solid, voxel at `layer-1` air ---
             mask.fill(AIR);
@@ -90,7 +91,7 @@ pub fn greedy_mesh(voxels: &[VoxelId]) -> MeshData {
             }
             done.fill(false);
             emit_quads(&mask, &mut done, n, layer, d, u_ax, v_ax, true,
-                &mut positions, &mut normals, &mut uvs, &mut colors, &mut tri_indices);
+                &mut positions, &mut normals, &mut uvs, &mut colors, &mut tri_indices, voxel_size);
         }
     }
 
@@ -121,8 +122,9 @@ fn emit_quads(
     uvs: &mut Vec<[f32; 2]>,
     colors: &mut Vec<[f32; 4]>,
     tri_indices: &mut Vec<u32>,
+    voxel_size: f32,
 ) {
-    let s = VOXEL_SIZE;
+    let s = voxel_size;
 
     for vi in 0..n {
         let mut ui = 0;
@@ -208,7 +210,7 @@ mod tests {
     #[test]
     fn empty_chunk_no_geometry() {
         let voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        let data = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels, VOXEL_SIZE);
         assert_eq!(vertex_count(&data), 0);
         assert_eq!(index_count(&data), 0);
     }
@@ -217,7 +219,7 @@ mod tests {
     fn single_voxel_has_six_faces() {
         let mut voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         voxels[0] = STONE; // position (0,0,0)
-        let data = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels, VOXEL_SIZE);
         // 6 faces × 4 vertices = 24 verts; 6 faces × 2 triangles × 3 indices = 36 indices
         assert_eq!(vertex_count(&data), 24, "single voxel needs 24 vertices");
         assert_eq!(index_count(&data), 36, "single voxel needs 36 indices");
@@ -228,7 +230,7 @@ mod tests {
         let mut voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         voxels[0] = STONE; // (0,0,0)
         voxels[1] = STONE; // (1,0,0) — adjacent on X axis
-        let data = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels, VOXEL_SIZE);
         // Two voxels share one internal face pair (+X of voxel0 meets -X of voxel1 → culled).
         // Exposed faces: 10 raw quads.
         // Greedy merges coplanar adjacent faces:
@@ -246,9 +248,18 @@ mod tests {
     #[test]
     fn full_chunk_only_outer_faces() {
         let voxels = vec![STONE; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        let data = greedy_mesh(&voxels);
+        let data = greedy_mesh(&voxels, VOXEL_SIZE);
         // 6 outer faces, each greedy-merged to 1 quad: 6 × 4 = 24 verts, 6 × 6 = 36 indices
         assert_eq!(vertex_count(&data), 24);
         assert_eq!(index_count(&data), 36);
+    }
+
+    #[test]
+    fn voxel_size_param_scales_geometry() {
+        let mut voxels = vec![AIR; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        voxels[0] = STONE;
+        let data = greedy_mesh(&voxels, 0.4);
+        let max_x = data.positions.iter().map(|p| p[0]).fold(f32::NEG_INFINITY, f32::max);
+        assert!((max_x - 0.4).abs() < 1e-5, "expected max_x=0.4, got {max_x}");
     }
 }

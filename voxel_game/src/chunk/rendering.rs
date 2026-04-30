@@ -71,7 +71,7 @@ pub fn spawn_meshing_tasks(
         if let Some(chunk) = world.get_mut(pos) {
             chunk.dirty = false;
             let voxels: Vec<VoxelId> = chunk.voxels.to_vec();
-            let task = task_pool.spawn(async move { greedy_mesh(&voxels) });
+            let task = task_pool.spawn(async move { greedy_mesh(&voxels, crate::config::VOXEL_SIZE) });
             meshing.0.insert(pos, task);
         }
     }
