@@ -251,6 +251,134 @@ pub fn lod_coordinator(
     });
 }
 
+pub fn spawn_lod_meshing_tasks(
+    lod0_world: Res<crate::chunk::loading::ChunkedWorld>,
+    super_world: Res<SuperChunkedWorld>,
+    mut meshing: ResMut<MeshingLodChunks>,
+    mut pending: ResMut<PendingSuperChunks>,
+) {
+    use crate::chunk::rendering::MAX_INFLIGHT_MESHING;
+    use crate::chunk::meshing::greedy_mesh;
+    use bevy::tasks::AsyncComputeTaskPool;
+
+    let task_pool = AsyncComputeTaskPool::get();
+    let capacity = MAX_INFLIGHT_MESHING.saturating_sub(meshing.0.len());
+    let mut spawned = 0;
+    let mut requeue: Vec<SuperChunkPos> = Vec::new();
+
+    while spawned < capacity {
+        let Some(sp) = pending.0.pop_front() else { break };
+
+        // Skip if already done or in-flight
+        if super_world.chunks.contains_key(&sp) || meshing.0.contains_key(&sp) {
+            continue;
+        }
+
+        // Gather 64 source voxel arrays
+        let source_voxels: Option<Vec<Box<[VoxelId]>>> = match sp.level {
+            LodLevel::Lod1 => {
+                let children = sp.lod0_chunks();
+                let mut vecs = Vec::with_capacity(64);
+                let mut ok = true;
+                for child in &children {
+                    if let Some(chunk) = lod0_world.get(*child) {
+                        vecs.push(chunk.voxels.clone());
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok { Some(vecs) } else { None }
+            }
+            LodLevel::Lod2 => {
+                let children = sp.lod1_super_chunks();
+                let mut vecs = Vec::with_capacity(64);
+                let mut ok = true;
+                for child in &children {
+                    if let Some(sc) = super_world.chunks.get(child) {
+                        vecs.push(sc.voxels.clone());
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok { Some(vecs) } else { None }
+            }
+        };
+
+        match source_voxels {
+            None => requeue.push(sp),
+            Some(sources) => {
+                let voxel_size = sp.voxel_size();
+                let task = task_pool.spawn(async move {
+                    let downsampled = downsample(sources, 4);
+                    let mesh = greedy_mesh(&downsampled, voxel_size);
+                    (mesh, downsampled)
+                });
+                meshing.0.insert(sp, task);
+                spawned += 1;
+            }
+        }
+    }
+
+    for sp in requeue {
+        pending.0.push_back(sp);
+    }
+}
+
+pub fn collect_lod_meshed_chunks(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshing: ResMut<MeshingLodChunks>,
+    mut super_world: ResMut<SuperChunkedWorld>,
+    mut super_entities: ResMut<SuperChunkEntities>,
+    mut shared_material: Local<Option<Handle<StandardMaterial>>>,
+) {
+    use bevy::tasks::{block_on, futures_lite::future};
+    use crate::chunk::meshing::mesh_data_to_mesh;
+
+    let material_handle = shared_material
+        .get_or_insert_with(|| {
+            materials.add(StandardMaterial {
+                base_color: Color::WHITE,
+                ..default()
+            })
+        })
+        .clone();
+
+    let mut completed: Vec<(SuperChunkPos, MeshData, Box<[VoxelId]>)> = Vec::new();
+    for (pos, task) in meshing.0.iter_mut() {
+        if let Some((data, voxels)) = block_on(future::poll_once(task)) {
+            completed.push((*pos, data, voxels));
+        }
+    }
+    for (pos, _, _) in &completed {
+        meshing.0.remove(pos);
+    }
+
+    for (pos, data, voxels) in completed {
+        if let Some(old) = super_entities.0.remove(&pos) {
+            commands.entity(old).despawn();
+        }
+
+        // Store the downsampled voxels for LOD2 to read
+        super_world.chunks.insert(pos, crate::chunk::SuperChunk { voxels });
+
+        if data.positions.is_empty() {
+            continue;
+        }
+        let mesh_handle = meshes.add(mesh_data_to_mesh(data));
+        let entity = commands.spawn((
+            Mesh3d(mesh_handle),
+            MeshMaterial3d(material_handle.clone()),
+            Transform::from_translation(pos.to_world_origin()),
+            pos,
+        )).id();
+        super_entities.0.insert(pos, entity);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
