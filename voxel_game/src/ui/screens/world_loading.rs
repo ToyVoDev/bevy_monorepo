@@ -24,7 +24,8 @@ fn enter_world_loading(
     mut pending: ResMut<PendingGeneration>,
     world: Res<ChunkedWorld>,
 ) {
-    info!("WorldLoading: entered (spawn_radius={})", settings.spawn_radius);
+    info!("WorldLoading: entered (spawn_radius={}, render_distance={})",
+        settings.spawn_radius, settings.render_distance);
 
     commands.spawn((
         widget::ui_root("World Loading Screen"),
@@ -32,7 +33,9 @@ fn enter_world_loading(
         children![widget::label("Generating world...")],
     ));
 
-    let r = settings.spawn_radius as i32;
+    // Queue the full render_distance cube so the 3-second window generates as many
+    // chunks as possible. Surface-first sort ensures spawn_radius chunks come first.
+    let r = settings.render_distance as i32;
     pending.0.clear();
     for dx in -r..=r {
         for dy in -r..=r {
@@ -68,20 +71,27 @@ fn check_spawn_ready(
 ) {
     timer.0.tick(time.delta());
 
-    let r = settings.spawn_radius as i32;
-    let total = ((r * 2 + 1) as usize).pow(3);
+    let spawn_r = settings.spawn_radius as i32;
+    let render_r = settings.render_distance as i32;
+    let total = ((render_r * 2 + 1) as usize).pow(3);
     let loaded = world.chunks.len().min(total);
 
-    if !timer.0.is_finished() || !all_spawn_chunks_present(&world, settings.spawn_radius) {
-        // Log progress once per second via the timer's elapsed
+    let spawn_ready = all_spawn_chunks_present(&world, settings.spawn_radius);
+    if !timer.0.is_finished() || !spawn_ready {
+        // Log progress once per second
         let elapsed = timer.0.elapsed_secs();
         if (elapsed * 2.0) as u32 != ((elapsed * 2.0 - time.delta_secs() * 2.0) as u32) {
-            info!("WorldLoading: {}/{} chunks loaded ({:.1}s elapsed)", loaded, total, elapsed);
+            let spawn_total = ((spawn_r * 2 + 1) as usize).pow(3);
+            let spawn_loaded = world.chunks.keys()
+                .filter(|p| p.0.abs() <= spawn_r && p.1.abs() <= spawn_r && p.2.abs() <= spawn_r)
+                .count();
+            info!("WorldLoading: {}/{} total chunks | {}/{} spawn chunks | {:.1}s elapsed",
+                loaded, total, spawn_loaded, spawn_total, elapsed);
         }
         return;
     }
 
-    info!("WorldLoading: all {} chunks ready — transitioning to Gameplay", total);
+    info!("WorldLoading: {} chunks loaded, spawn area ready — transitioning to Gameplay", loaded);
     next_screen.set(Screen::Gameplay);
 }
 

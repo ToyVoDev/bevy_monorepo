@@ -13,7 +13,7 @@ dev = [
 dev_native = ["dev", "bevy/file_watcher"]
 
 [dependencies]
-bevy = { version = "0.18", default-features = false, features = ["3d", "default_font"] }
+bevy = { version = "0.18", default-features = false, features = ["3d", "default_font", "debug"] }
 avian3d = { version = "0.6", features = ["3d", "f32", "parry-f32"] }
 serde = { version = "1", features = ["derive"] }
 noise = "0.9"
