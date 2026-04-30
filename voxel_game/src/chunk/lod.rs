@@ -100,15 +100,16 @@ pub struct SuperChunkEntities(pub HashMap<SuperChunkPos, Entity>);
 /// Each output voxel is the most common non-air type in its factor³ source region,
 /// or AIR if all source voxels are air.
 pub fn downsample(sources: Vec<Box<[VoxelId]>>, factor: usize) -> Box<[VoxelId]> {
+    debug_assert_eq!(sources.len(), factor * factor * factor,
+        "sources must be factor³ chunks");
     let n = CHUNK_SIZE;
     let mut out = vec![AIR; n * n * n].into_boxed_slice();
+    let mut counts: HashMap<VoxelId, u32> = HashMap::new();
 
     for oz in 0..n {
         for oy in 0..n {
             for ox in 0..n {
-                let mut best_id = AIR;
-                let mut best_count = 0u32;
-                let mut counts = [0u32; 256];
+                counts.clear();
 
                 for fz in 0..factor {
                     for fy in 0..factor {
@@ -119,24 +120,24 @@ pub fn downsample(sources: Vec<Box<[VoxelId]>>, factor: usize) -> Box<[VoxelId]>
                             let cx = sx / n;
                             let cy = sy / n;
                             let cz = sz / n;
-                            let ci = cx + cy * 4 + cz * 16;
+                            let ci = cx + cy * factor + cz * factor * factor;
                             let lx = sx % n;
                             let ly = sy % n;
                             let lz = sz % n;
                             let vi = lx + ly * n + lz * n * n;
                             let id = sources[ci][vi];
                             if id != AIR {
-                                let slot = (id as usize).min(255);
-                                counts[slot] += 1;
-                                if counts[slot] > best_count {
-                                    best_count = counts[slot];
-                                    best_id = id;
-                                }
+                                *counts.entry(id).or_insert(0) += 1;
                             }
                         }
                     }
                 }
-                out[ox + oy * n + oz * n * n] = best_id;
+
+                out[ox + oy * n + oz * n * n] = counts
+                    .iter()
+                    .max_by_key(|(_, c)| *c)
+                    .map(|(id, _)| *id)
+                    .unwrap_or(AIR);
             }
         }
     }
@@ -242,5 +243,25 @@ mod tests {
         let out = downsample(sources, 4);
         assert_eq!(out[0], STONE, "voxel (0,0,0) should be stone");
         assert_eq!(out[8], DIRT,  "voxel (8,0,0) should be dirt");
+    }
+
+    #[test]
+    fn downsample_cross_chunk_boundary() {
+        use crate::types::{STONE, DIRT};
+        let n = CHUNK_SIZE;
+        let stone_chunk: Box<[VoxelId]> = vec![STONE; n * n * n].into_boxed_slice();
+        let dirt_chunk: Box<[VoxelId]> = vec![DIRT; n * n * n].into_boxed_slice();
+        // chunks[cx=0,...] = stone, chunks[cx=1,2,3,...] = dirt
+        // chunk index: ci = cx + cy*4 + cz*16
+        let sources: Vec<Box<[VoxelId]>> = (0..64).map(|i| {
+            let cx = i % 4;
+            if cx == 0 { stone_chunk.clone() } else { dirt_chunk.clone() }
+        }).collect();
+        let out = downsample(sources, 4);
+        // ox=0..7: source sx=0..31 → all cx=0 → stone
+        // ox=8..15: source sx=32..63 → all cx=1 → dirt
+        assert_eq!(out[0], STONE, "ox=0 should be stone");
+        assert_eq!(out[7], STONE, "ox=7 should be stone (last voxel in cx=0)");
+        assert_eq!(out[8], DIRT,  "ox=8 should be dirt (first voxel in cx=1)");
     }
 }
