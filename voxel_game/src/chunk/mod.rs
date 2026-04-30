@@ -18,6 +18,8 @@ use lod::{
 pub struct ChunkPlugin;
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
+        use crate::ui::screens::Screen;
+
         app
             .init_resource::<ChunkedWorld>()
             .init_resource::<ChunkEntities>()
@@ -37,7 +39,13 @@ impl Plugin for ChunkPlugin {
                 lod_coordinator.after(load_unload_chunks),
                 spawn_lod_meshing_tasks.after(lod_coordinator).after(collect_generated_chunks),
                 collect_lod_meshed_chunks.after(spawn_lod_meshing_tasks),
-            ).in_set(PausableSystems));
+            ).in_set(PausableSystems))
+            .add_systems(Update, (
+                spawn_generation_tasks,
+                collect_generated_chunks.after(spawn_generation_tasks),
+                spawn_meshing_tasks.after(collect_generated_chunks),
+                collect_meshed_chunks.after(spawn_meshing_tasks),
+            ).run_if(in_state(Screen::WorldLoading)));
     }
 }
 
