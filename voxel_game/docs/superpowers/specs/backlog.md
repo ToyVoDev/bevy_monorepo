@@ -15,9 +15,6 @@ Terrain beyond 2km rendered as heightmap quads instead of voxel meshes. Deferred
 ### LOD Seam Stitching
 Currently LOD ring transitions are hard swaps — visible pop when player crosses a ring boundary. Future work to smooth this (geometry stitching, cross-fade, or distance fog to hide it). Low priority until LOD system is live and the pop is measurable.
 
-### Bevy 0.18 + avian3d 0.6 Upgrade
-Upgrade from current Bevy/avian versions. User preference. Worth doing as a dedicated spec if breaking changes are significant; otherwise a straight dependency bump.
-
 ---
 
 ## Visuals
