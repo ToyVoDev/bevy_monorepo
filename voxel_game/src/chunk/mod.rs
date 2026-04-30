@@ -64,6 +64,7 @@ impl Chunk {
     }
 }
 
+#[derive(Debug)]
 pub struct SuperChunk {
     pub voxels: Box<[VoxelId]>,
 }
