@@ -144,6 +144,112 @@ pub fn downsample(sources: Vec<Box<[VoxelId]>>, factor: usize) -> Box<[VoxelId]>
     out
 }
 
+pub const LOD1_INNER: i32 = 10; // 10 * 12.8m = 128m
+pub const LOD1_OUTER: i32 = 40; // 40 * 12.8m = 512m
+pub const LOD1_Y_RADIUS: i32 = 5;
+
+pub const LOD2_INNER: i32 = 10; // 10 * 51.2m = 512m
+pub const LOD2_OUTER: i32 = 39; // 39 * 51.2m ≈ 2km
+pub const LOD2_Y_RADIUS: i32 = 3;
+
+pub fn lod_coordinator(
+    player_query: Query<&Transform, With<crate::player::Player>>,
+    mut super_world: ResMut<SuperChunkedWorld>,
+    mut super_entities: ResMut<SuperChunkEntities>,
+    mut pending: ResMut<PendingSuperChunks>,
+    mut commands: Commands,
+    mut last_lod1_pos: Local<Option<SuperChunkPos>>,
+) {
+    let Ok(player_tf) = player_query.single() else { return };
+    let player_lod1 = SuperChunkPos::from_world(player_tf.translation, LodLevel::Lod1);
+    let player_lod2 = SuperChunkPos::from_world(player_tf.translation, LodLevel::Lod2);
+
+    if *last_lod1_pos == Some(player_lod1) {
+        return;
+    }
+    *last_lod1_pos = Some(player_lod1);
+
+    // Despawn entities and remove world data for out-of-range super-chunks
+    let dead: Vec<SuperChunkPos> = super_entities
+        .0
+        .keys()
+        .filter(|&&sp| {
+            match sp.level {
+                LodLevel::Lod1 => {
+                    let xz = (sp.x - player_lod1.x).abs().max((sp.z - player_lod1.z).abs());
+                    let dy = (sp.y - player_lod1.y).abs();
+                    xz < LOD1_INNER || xz > LOD1_OUTER || dy > LOD1_Y_RADIUS
+                }
+                LodLevel::Lod2 => {
+                    let xz = (sp.x - player_lod2.x).abs().max((sp.z - player_lod2.z).abs());
+                    let dy = (sp.y - player_lod2.y).abs();
+                    xz < LOD2_INNER || xz > LOD2_OUTER || dy > LOD2_Y_RADIUS
+                }
+            }
+        })
+        .copied()
+        .collect();
+    for sp in dead {
+        if let Some(entity) = super_entities.0.remove(&sp) {
+            commands.entity(entity).despawn();
+        }
+        super_world.chunks.remove(&sp);
+    }
+
+    // Rebuild pending queue
+    pending.0.clear();
+
+    // LOD1 ring
+    for dx in -LOD1_OUTER..=LOD1_OUTER {
+        for dy in -LOD1_Y_RADIUS..=LOD1_Y_RADIUS {
+            for dz in -LOD1_OUTER..=LOD1_OUTER {
+                let xz = dx.abs().max(dz.abs());
+                if xz < LOD1_INNER || xz > LOD1_OUTER { continue; }
+                let sp = SuperChunkPos {
+                    x: player_lod1.x + dx,
+                    y: player_lod1.y + dy,
+                    z: player_lod1.z + dz,
+                    level: LodLevel::Lod1,
+                };
+                if !super_world.chunks.contains_key(&sp) {
+                    pending.0.push_back(sp);
+                }
+            }
+        }
+    }
+
+    // LOD2 ring
+    for dx in -LOD2_OUTER..=LOD2_OUTER {
+        for dy in -LOD2_Y_RADIUS..=LOD2_Y_RADIUS {
+            for dz in -LOD2_OUTER..=LOD2_OUTER {
+                let xz = dx.abs().max(dz.abs());
+                if xz < LOD2_INNER || xz > LOD2_OUTER { continue; }
+                let sp = SuperChunkPos {
+                    x: player_lod2.x + dx,
+                    y: player_lod2.y + dy,
+                    z: player_lod2.z + dz,
+                    level: LodLevel::Lod2,
+                };
+                if !super_world.chunks.contains_key(&sp) {
+                    pending.0.push_back(sp);
+                }
+            }
+        }
+    }
+
+    // Sort: LOD1 before LOD2, surface-first within each level
+    pending.0.make_contiguous().sort_unstable_by_key(|sp| {
+        let level_cost: i32 = match sp.level { LodLevel::Lod1 => 0, LodLevel::Lod2 => 1_000_000 };
+        let (dx, dy, dz) = match sp.level {
+            LodLevel::Lod1 => (sp.x - player_lod1.x, sp.y - player_lod1.y, sp.z - player_lod1.z),
+            LodLevel::Lod2 => (sp.x - player_lod2.x, sp.y - player_lod2.y, sp.z - player_lod2.z),
+        };
+        let xz = dx.abs() + dz.abs();
+        let y_cost = if dy < 0 { (-dy) * 4 } else { dy };
+        level_cost + xz + y_cost
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,5 +369,21 @@ mod tests {
         assert_eq!(out[0], STONE, "ox=0 should be stone");
         assert_eq!(out[7], STONE, "ox=7 should be stone (last voxel in cx=0)");
         assert_eq!(out[8], DIRT,  "ox=8 should be dirt (first voxel in cx=1)");
+    }
+
+    #[test]
+    fn lod1_ring_inner_outer_match_meters() {
+        let lod0_side = CHUNK_SIZE as f32 * VOXEL_SIZE;
+        let lod1_side = 4.0 * lod0_side;
+        assert!((LOD1_INNER as f32 * lod1_side - 128.0).abs() < 0.1);
+        assert!((LOD1_OUTER as f32 * lod1_side - 512.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn lod2_ring_inner_outer_match_meters() {
+        let lod0_side = CHUNK_SIZE as f32 * VOXEL_SIZE;
+        let lod2_side = 16.0 * lod0_side;
+        assert!((LOD2_INNER as f32 * lod2_side - 512.0).abs() < 0.1);
+        assert!(LOD2_OUTER as f32 * lod2_side >= 1800.0);
     }
 }
